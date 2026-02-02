@@ -84,7 +84,7 @@
         <div class="card">
             <h1>🌙</h1>
             <h2>رمضان 1447</h2>
-            <div id="countdown" style="color: var(--gold); margin-bottom: 15px;"></div>
+            <div id="countdown" style="color: var(--gold); margin-bottom: 15px;">⏳ جاري حساب الوقت...</div>
             <input type="email" id="email" placeholder="البريد الإلكتروني">
             <input type="password" id="password" placeholder="كلمة السر">
             <button onclick="handleLogin()">دخول</button>
@@ -115,7 +115,7 @@
         </div>
 
         <div id="admin-area" style="display:none;" class="card">
-            <h3 style="color:var(--gold)">🛠️ لوحة الإدارة</h3>
+            <h3 style="color:var(--gold)">🛠️ لوحة الإدارة (للمسؤول فقط)</h3>
             <div style="display: flex; gap: 5px;">
                 <input type="number" id="adm-day" placeholder="رقم اليوم">
                 <button onclick="checkQuestion()" class="btn-secondary" style="width: 40%;">فحص 🔍</button>
@@ -149,7 +149,7 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- وظائف الإدارة: فحص، حذف، حفظ ---
+        // --- وظائف الإدارة ---
         window.checkQuestion = async () => {
             const day = document.getElementById('adm-day').value;
             if(!day) return alert("يرجى إدخال رقم اليوم");
@@ -205,7 +205,7 @@
             } catch (e) { document.getElementById('prayer-info').innerText = "بورسعيد: سبحان الله وبحمده"; }
         }
 
-        // --- نظام الأسئلة والمقارنة الدقيقة ---
+        // --- نظام الأسئلة ---
         async function loadQuestion(day, solved) {
             const qSnap = await getDoc(doc(db, "questions", `day_${day}`));
             const box = document.getElementById('options-box'); box.innerHTML = '';
@@ -232,20 +232,47 @@
             } else { document.getElementById('q-text').innerText = "لا يوجد سؤال متاح حالياً."; }
         }
 
-        // --- Auth Logic ---
+        // --- العد التنازلي لرمضان ---
+        function updateCountdown() {
+            const target = new Date("Feb 18, 2026 00:00:00").getTime();
+            const now = new Date().getTime();
+            const diff = target - now;
+            if (diff <= 0) { document.getElementById("countdown").innerText = "رمضان كريم! 🌙"; return; }
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            document.getElementById("countdown").innerText = `متبقي على رمضان: ${days} يوم و ${hours} ساعة`;
+        }
+        setInterval(updateCountdown, 1000);
+
+        // --- نظام التحقق من المستخدم والمسؤول (التحسين المطلوب) ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 document.getElementById('login-page').style.display = 'none';
                 document.getElementById('main-page').style.display = 'block';
+                
                 const userRef = doc(db, "users", user.uid);
                 let snap = await getDoc(userRef);
-                if (!snap.exists()) await setDoc(userRef, { email: user.email, score: 0, role: 'user', lastSolved: 0 });
-                const data = snap.data() || (await getDoc(userRef)).data();
+                
+                // إذا كان الحساب جديداً
+                if (!snap.exists()) {
+                    // إذا كان الإيميل هو إيميل الأدمن المخصص، نعطيه رتبة أدمن تلقائياً
+                    const role = (user.email === "m@m.com") ? "admin" : "user";
+                    await setDoc(userRef, { email: user.email, score: 0, role: role, lastSolved: 0 });
+                    snap = await getDoc(userRef);
+                }
+
+                const data = snap.data();
                 document.getElementById('user-display').innerText = "أهلاً " + user.email.split('@')[0];
                 document.getElementById('user-score').innerText = data.score;
-                if(data.role === 'admin') document.getElementById('admin-area').style.display = 'block';
+
+                // --- شرط حماية لوحة الإدارة ---
+                // لا تظهر اللوحة إلا إذا كان الإيميل m@m.com وأيضاً الرتبة admin في قاعدة البيانات
+                if(user.email === "m@m.com" && data.role === "admin") {
+                    document.getElementById('admin-area').style.display = 'block';
+                } else {
+                    document.getElementById('admin-area').style.display = 'none';
+                }
                 
-                // تحديد اليوم الهجري (يمكن تعديله ليكون آلياً)
                 loadQuestion(1, data.lastSolved >= 1);
                 loadLeaderboard();
                 fetchPrayers();
@@ -255,7 +282,6 @@
             }
         });
 
-        // --- Helper Functions ---
         async function loadLeaderboard() {
             const q = query(collection(db, "users"), orderBy("score", "desc"), limit(5));
             const snap = await getDocs(q);
@@ -267,11 +293,14 @@
         }
 
         window.handleLogin = () => {
-            signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(() => alert("خطأ دخول"));
+            signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value)
+            .catch(() => alert("خطأ في بيانات الدخول"));
         };
 
         window.handleSignUp = () => {
-            createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).then(() => alert("تم!")).catch(() => alert("خطأ تسجيل"));
+            createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value)
+            .then(() => alert("تم إنشاء الحساب بنجاح!"))
+            .catch((err) => alert("خطأ في التسجيل: " + err.message));
         };
 
         window.showResult = (correct, exp) => {
@@ -282,7 +311,7 @@
         };
 
         window.closeModal = () => document.getElementById('explanation-modal').style.display = 'none';
-        window.logout = () => signOut(auth);
+        window.logout = () => signOut(auth).then(() => location.reload());
 
         const azkar = ["سبحان الله", "الحمد لله", "لا إله إلا الله", "الله أكبر"];
         setInterval(() => { document.getElementById('random-azkar').innerText = azkar[Math.floor(Math.random()*azkar.length)]; }, 5000);
