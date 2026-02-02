@@ -66,6 +66,8 @@
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center;
         }
+        .btn-danger { background: linear-gradient(135deg, #ef4444, #991b1b); color: white; }
+        .btn-secondary { background: #334155; color: white; }
     </style>
 </head>
 <body>
@@ -115,14 +117,15 @@
         <div id="admin-area" style="display:none;" class="card">
             <h3 style="color:var(--gold)">🛠️ لوحة الإدارة</h3>
             <div style="display: flex; gap: 5px;">
-                <input type="number" id="adm-day" placeholder="اليوم">
-                <button onclick="checkQuestion()" style="width: 40%; background: #334155; color: white;">فحص 🔍</button>
+                <input type="number" id="adm-day" placeholder="رقم اليوم">
+                <button onclick="checkQuestion()" class="btn-secondary" style="width: 40%;">فحص 🔍</button>
             </div>
             <textarea id="adm-text" placeholder="نص السؤال"></textarea>
             <input type="text" id="adm-opts" placeholder="الخيارات (افصل بـ ,)">
             <input type="text" id="adm-correct" placeholder="الإجابة الصحيحة">
             <textarea id="adm-explain" placeholder="التفسير"></textarea>
             <button onclick="quickAdd()">حفظ / تعديل السؤال ✅</button>
+            <button onclick="deleteQuestion()" class="btn-danger">حذف سؤال هذا اليوم 🗑️</button>
         </div>
         
         <button onclick="logout()" style="background:none; color:var(--red); border:1px solid var(--red); width: auto; padding: 8px 20px;">خروج</button>
@@ -131,7 +134,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCKNwu6R3wjeHvWOrpiWkx5fnk0luEX_z4",
@@ -146,11 +149,10 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- فحص وتعديل الأسئلة (جديد) ---
+        // --- وظائف الإدارة: فحص، حذف، حفظ ---
         window.checkQuestion = async () => {
             const day = document.getElementById('adm-day').value;
-            if(!day) return alert("يرجى إدخال رقم اليوم أولاً");
-            
+            if(!day) return alert("يرجى إدخال رقم اليوم");
             const qSnap = await getDoc(doc(db, "questions", `day_${day}`));
             if(qSnap.exists()) {
                 const data = qSnap.data();
@@ -158,10 +160,31 @@
                 document.getElementById('adm-opts').value = data.options.join(',');
                 document.getElementById('adm-correct').value = data.correct;
                 document.getElementById('adm-explain').value = data.explanation;
-                alert("تم جلب بيانات السؤال، يمكنك التعديل الآن.");
-            } else {
-                alert("هذا اليوم لا يوجد به سؤال مسجل حالياً.");
+                alert("تم العثور على السؤال.");
+            } else { alert("لا يوجد سؤال لهذا اليوم."); }
+        };
+
+        window.deleteQuestion = async () => {
+            const day = document.getElementById('adm-day').value;
+            if(!day) return alert("حدد اليوم المراد حذفه");
+            if(confirm("هل أنت متأكد من حذف سؤال اليوم رقم " + day + " نهائياً؟")) {
+                await deleteDoc(doc(db, "questions", `day_${day}`));
+                alert("تم الحذف بنجاح");
+                location.reload();
             }
+        };
+
+        window.quickAdd = async () => {
+            const d = document.getElementById('adm-day').value;
+            if(!d) return alert("ادخل رقم اليوم");
+            await setDoc(doc(db, "questions", `day_${d}`), {
+                text: document.getElementById('adm-text').value,
+                options: document.getElementById('adm-opts').value.split(','),
+                correct: document.getElementById('adm-correct').value.trim(),
+                explanation: document.getElementById('adm-explain').value
+            });
+            alert("تم الحفظ!");
+            location.reload();
         };
 
         // --- مواقيت الصلاة (بورسعيد) ---
@@ -173,7 +196,6 @@
                 const prayers = { "Fajr": "الفجر", "Dhuhr": "الظهر", "Asr": "العصر", "Maghrib": "المغرب", "Isha": "العشاء" };
                 const now = new Date();
                 let next = "الفجر"; 
-
                 for (let [k, v] of Object.entries(prayers)) {
                     const [h, m] = t[k].split(':');
                     const pTime = new Date(); pTime.setHours(h, m, 0);
@@ -183,21 +205,18 @@
             } catch (e) { document.getElementById('prayer-info').innerText = "بورسعيد: سبحان الله وبحمده"; }
         }
 
-        // --- نظام الأسئلة والمقارنة ---
+        // --- نظام الأسئلة والمقارنة الدقيقة ---
         async function loadQuestion(day, solved) {
             const qSnap = await getDoc(doc(db, "questions", `day_${day}`));
             const box = document.getElementById('options-box'); box.innerHTML = '';
-            
             if (qSnap.exists()) {
                 const q = qSnap.data();
                 document.getElementById('q-text').innerText = q.text;
-                
                 q.options.forEach(opt => {
                     const b = document.createElement('button');
                     b.className = 'opt-btn';
                     b.innerText = opt.trim();
                     if(solved) b.disabled = true;
-                    
                     b.onclick = async () => {
                         const isCorrect = opt.trim() === q.correct.trim();
                         if(isCorrect && !solved) {
@@ -209,37 +228,11 @@
                     };
                     box.appendChild(b);
                 });
-                if(solved) document.getElementById('q-text').innerHTML += "<br><small style='color:var(--gold)'>✅ تم الحل</small>";
-            } else {
-                document.getElementById('q-text').innerText = "انتظروا سؤال اليوم الجديد..";
-            }
+                if(solved) document.getElementById('q-text').innerHTML += "<br><small style='color:var(--gold)'>✅ تمت الإجابة بنجاح</small>";
+            } else { document.getElementById('q-text').innerText = "لا يوجد سؤال متاح حالياً."; }
         }
 
-        // --- الإدارة - الحفظ ---
-        window.quickAdd = async () => {
-            const d = document.getElementById('adm-day').value;
-            if(!d) return alert("ادخل رقم اليوم");
-            await setDoc(doc(db, "questions", `day_${d}`), {
-                text: document.getElementById('adm-text').value,
-                options: document.getElementById('adm-opts').value.split(','),
-                correct: document.getElementById('adm-correct').value.trim(),
-                explanation: document.getElementById('adm-explain').value
-            });
-            alert("تم الحفظ بنجاح!");
-            location.reload(); // لتحديث السؤال المعروض فوراً
-        };
-
-        // --- Auth & Initializing ---
-        window.handleLogin = () => {
-            const e = document.getElementById('email').value, p = document.getElementById('password').value;
-            signInWithEmailAndPassword(auth, e, p).catch(err => alert("خطأ في البيانات"));
-        };
-
-        window.handleSignUp = () => {
-            const e = document.getElementById('email').value, p = document.getElementById('password').value;
-            createUserWithEmailAndPassword(auth, e, p).then(() => alert("تم التسجيل")).catch(err => alert("خطأ في التسجيل"));
-        };
-
+        // --- Auth Logic ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 document.getElementById('login-page').style.display = 'none';
@@ -247,12 +240,12 @@
                 const userRef = doc(db, "users", user.uid);
                 let snap = await getDoc(userRef);
                 if (!snap.exists()) await setDoc(userRef, { email: user.email, score: 0, role: 'user', lastSolved: 0 });
-                const data = (await getDoc(userRef)).data();
+                const data = snap.data() || (await getDoc(userRef)).data();
                 document.getElementById('user-display').innerText = "أهلاً " + user.email.split('@')[0];
                 document.getElementById('user-score').innerText = data.score;
                 if(data.role === 'admin') document.getElementById('admin-area').style.display = 'block';
                 
-                // تحديد اليوم الهجري (يمكنك برمجتها لتكون تلقائية، هنا هي 1 للتجربة)
+                // تحديد اليوم الهجري (يمكن تعديله ليكون آلياً)
                 loadQuestion(1, data.lastSolved >= 1);
                 loadLeaderboard();
                 fetchPrayers();
@@ -262,6 +255,7 @@
             }
         });
 
+        // --- Helper Functions ---
         async function loadLeaderboard() {
             const q = query(collection(db, "users"), orderBy("score", "desc"), limit(5));
             const snap = await getDocs(q);
@@ -272,8 +266,16 @@
             });
         }
 
+        window.handleLogin = () => {
+            signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(() => alert("خطأ دخول"));
+        };
+
+        window.handleSignUp = () => {
+            createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).then(() => alert("تم!")).catch(() => alert("خطأ تسجيل"));
+        };
+
         window.showResult = (correct, exp) => {
-            document.getElementById('result-title').innerText = correct ? "أحسنت! 🎉" : "للأسف خطأ 🌙";
+            document.getElementById('result-title').innerText = correct ? "أحسنت! 🎉" : "خطأ 🌙";
             document.getElementById('result-title').style.color = correct ? "var(--success)" : "var(--red)";
             document.getElementById('explanation-text').innerText = exp;
             document.getElementById('explanation-modal').style.display = 'flex';
@@ -282,10 +284,8 @@
         window.closeModal = () => document.getElementById('explanation-modal').style.display = 'none';
         window.logout = () => signOut(auth);
 
-        const azkar = ["سبحان الله", "الحمد لله", "لا إله إلا الله", "الله أكبر", "أستغفر الله"];
-        setInterval(() => {
-            document.getElementById('random-azkar').innerText = azkar[Math.floor(Math.random()*azkar.length)];
-        }, 5000);
+        const azkar = ["سبحان الله", "الحمد لله", "لا إله إلا الله", "الله أكبر"];
+        setInterval(() => { document.getElementById('random-azkar').innerText = azkar[Math.floor(Math.random()*azkar.length)]; }, 5000);
     </script>
 </body>
 </html>
