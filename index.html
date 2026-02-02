@@ -115,7 +115,7 @@
         </div>
 
         <div id="admin-area" style="display:none;" class="card">
-            <h3 style="color:var(--gold)">🛠️ لوحة الإدارة (للمسؤول فقط)</h3>
+            <h3 style="color:var(--gold)">🛠️ لوحة الإدارة</h3>
             <div style="display: flex; gap: 5px;">
                 <input type="number" id="adm-day" placeholder="رقم اليوم">
                 <button onclick="checkQuestion()" class="btn-secondary" style="width: 40%;">فحص 🔍</button>
@@ -167,9 +167,9 @@
         window.deleteQuestion = async () => {
             const day = document.getElementById('adm-day').value;
             if(!day) return alert("حدد اليوم المراد حذفه");
-            if(confirm("هل أنت متأكد من حذف سؤال اليوم رقم " + day + " نهائياً؟")) {
+            if(confirm("هل أنت متأكد من حذف هذا السؤال؟")) {
                 await deleteDoc(doc(db, "questions", `day_${day}`));
-                alert("تم الحذف بنجاح");
+                alert("تم الحذف");
                 location.reload();
             }
         };
@@ -187,7 +187,7 @@
             location.reload();
         };
 
-        // --- مواقيت الصلاة (بورسعيد) ---
+        // --- مواقيت صلاة بورسعيد ---
         async function fetchPrayers() {
             try {
                 const res = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=Port%20Said&country=Egypt&method=5`);
@@ -205,74 +205,76 @@
             } catch (e) { document.getElementById('prayer-info').innerText = "بورسعيد: سبحان الله وبحمده"; }
         }
 
-        // --- نظام الأسئلة ---
+        // --- نظام الأسئلة (المعدل لقفل الإجابة فوراً) ---
         async function loadQuestion(day, solved) {
             const qSnap = await getDoc(doc(db, "questions", `day_${day}`));
             const box = document.getElementById('options-box'); box.innerHTML = '';
+            
             if (qSnap.exists()) {
                 const q = qSnap.data();
                 document.getElementById('q-text').innerText = q.text;
+                
                 q.options.forEach(opt => {
                     const b = document.createElement('button');
                     b.className = 'opt-btn';
                     b.innerText = opt.trim();
+                    
+                    // إذا كان المستخدم قد حل السؤال مسبقاً، نقفل الأزرار
                     if(solved) b.disabled = true;
+                    
                     b.onclick = async () => {
+                        // 1. قفل الأزرار فوراً لمنع الضغط مرة أخرى
+                        const allBtns = box.querySelectorAll('button');
+                        allBtns.forEach(btn => btn.disabled = true);
+
                         const isCorrect = opt.trim() === q.correct.trim();
-                        if(isCorrect && !solved) {
-                            await updateDoc(doc(db, "users", auth.currentUser.uid), { score: increment(10), lastSolved: day });
+                        
+                        // 2. تحديث قاعدة البيانات: تسجيل أن المستخدم حاول حل السؤال (سواء صح أو خطأ)
+                        await updateDoc(doc(db, "users", auth.currentUser.uid), { 
+                            lastSolved: day 
+                        });
+
+                        // 3. إذا كانت الإجابة صحيحة، أضف النقاط
+                        if(isCorrect) {
+                            await updateDoc(doc(db, "users", auth.currentUser.uid), { 
+                                score: increment(10) 
+                            });
                             document.getElementById('user-score').innerText = parseInt(document.getElementById('user-score').innerText) + 10;
-                            solved = true;
                         }
+
+                        // 4. عرض النتيجة
                         showResult(isCorrect, q.explanation);
+                        document.getElementById('q-text').innerHTML += isCorrect ? "<br><small style='color:var(--success)'>✅ إجابة صحيحة</small>" : "<br><small style='color:var(--red)'>❌ إجابة خاطئة</small>";
                     };
                     box.appendChild(b);
                 });
-                if(solved) document.getElementById('q-text').innerHTML += "<br><small style='color:var(--gold)'>✅ تمت الإجابة بنجاح</small>";
-            } else { document.getElementById('q-text').innerText = "لا يوجد سؤال متاح حالياً."; }
+                if(solved) document.getElementById('q-text').innerHTML += "<br><small style='color:var(--gold)'>⚠️ انتهت محاولتك لهذا اليوم</small>";
+            } else {
+                document.getElementById('q-text').innerText = "لا يوجد سؤال متاح حالياً.";
+            }
         }
 
-        // --- العد التنازلي لرمضان ---
-        function updateCountdown() {
-            const target = new Date("Feb 18, 2026 00:00:00").getTime();
-            const now = new Date().getTime();
-            const diff = target - now;
-            if (diff <= 0) { document.getElementById("countdown").innerText = "رمضان كريم! 🌙"; return; }
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            document.getElementById("countdown").innerText = `متبقي على رمضان: ${days} يوم و ${hours} ساعة`;
-        }
-        setInterval(updateCountdown, 1000);
-
-        // --- نظام التحقق من المستخدم والمسؤول (التحسين المطلوب) ---
+        // --- نظام التحقق والعد التنازلي ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 document.getElementById('login-page').style.display = 'none';
                 document.getElementById('main-page').style.display = 'block';
-                
                 const userRef = doc(db, "users", user.uid);
                 let snap = await getDoc(userRef);
-                
-                // إذا كان الحساب جديداً
                 if (!snap.exists()) {
-                    // إذا كان الإيميل هو إيميل الأدمن المخصص، نعطيه رتبة أدمن تلقائياً
                     const role = (user.email === "m@m.com") ? "admin" : "user";
                     await setDoc(userRef, { email: user.email, score: 0, role: role, lastSolved: 0 });
                     snap = await getDoc(userRef);
                 }
-
                 const data = snap.data();
                 document.getElementById('user-display').innerText = "أهلاً " + user.email.split('@')[0];
                 document.getElementById('user-score').innerText = data.score;
 
-                // --- شرط حماية لوحة الإدارة ---
-                // لا تظهر اللوحة إلا إذا كان الإيميل m@m.com وأيضاً الرتبة admin في قاعدة البيانات
                 if(user.email === "m@m.com" && data.role === "admin") {
                     document.getElementById('admin-area').style.display = 'block';
-                } else {
-                    document.getElementById('admin-area').style.display = 'none';
                 }
                 
+                // تحميل السؤال الحالي (يمكن تغيير الرقم 1 برقم اليوم المتغير)
                 loadQuestion(1, data.lastSolved >= 1);
                 loadLeaderboard();
                 fetchPrayers();
@@ -282,6 +284,7 @@
             }
         });
 
+        // --- دوال مساعدة ---
         async function loadLeaderboard() {
             const q = query(collection(db, "users"), orderBy("score", "desc"), limit(5));
             const snap = await getDocs(q);
@@ -292,27 +295,27 @@
             });
         }
 
-        window.handleLogin = () => {
-            signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value)
-            .catch(() => alert("خطأ في بيانات الدخول"));
-        };
+        function updateCountdown() {
+            const target = new Date("Feb 18, 2026 00:00:00").getTime();
+            const now = new Date().getTime();
+            const diff = target - now;
+            if (diff <= 0) { document.getElementById("countdown").innerText = "رمضان كريم!"; return; }
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            document.getElementById("countdown").innerText = `متبقي على رمضان: ${days} يوم`;
+        }
+        setInterval(updateCountdown, 1000);
 
-        window.handleSignUp = () => {
-            createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value)
-            .then(() => alert("تم إنشاء الحساب بنجاح!"))
-            .catch((err) => alert("خطأ في التسجيل: " + err.message));
-        };
-
+        window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(() => alert("خطأ دخول"));
+        window.handleSignUp = () => createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(() => alert("خطأ تسجيل"));
         window.showResult = (correct, exp) => {
-            document.getElementById('result-title').innerText = correct ? "أحسنت! 🎉" : "خطأ 🌙";
+            document.getElementById('result-title').innerText = correct ? "أحسنت! 🎉" : "خطأ! 🌙";
             document.getElementById('result-title').style.color = correct ? "var(--success)" : "var(--red)";
             document.getElementById('explanation-text').innerText = exp;
             document.getElementById('explanation-modal').style.display = 'flex';
         };
-
         window.closeModal = () => document.getElementById('explanation-modal').style.display = 'none';
         window.logout = () => signOut(auth).then(() => location.reload());
-
+        
         const azkar = ["سبحان الله", "الحمد لله", "لا إله إلا الله", "الله أكبر"];
         setInterval(() => { document.getElementById('random-azkar').innerText = azkar[Math.floor(Math.random()*azkar.length)]; }, 5000);
     </script>
