@@ -68,6 +68,9 @@
         }
         .btn-danger { background: linear-gradient(135deg, #ef4444, #991b1b); color: white; }
         .btn-secondary { background: #334155; color: white; }
+
+        /* ستايل مخصص للعداد */
+        .timer-unit { color: var(--gold); font-weight: 800; font-size: 1.1rem; }
     </style>
 </head>
 <body>
@@ -84,7 +87,7 @@
         <div class="card">
             <h1>🌙</h1>
             <h2>رمضان 1447</h2>
-            <div id="countdown" style="color: var(--gold); margin-bottom: 15px;">⏳ جاري حساب الوقت...</div>
+            <div id="countdown" style="margin-bottom: 15px; line-height: 1.6;">⏳ جاري حساب الوقت...</div>
             <input type="email" id="email" placeholder="البريد الإلكتروني">
             <input type="password" id="password" placeholder="كلمة السر">
             <button onclick="handleLogin()">دخول</button>
@@ -150,17 +153,40 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- حساب اليوم الرمضاني بناءً على التاريخ ---
+        // --- حساب اليوم الرمضاني ---
         function getRamadanDay() {
             const startOfRamadan = new Date("Feb 18, 2026 00:00:00");
             const today = new Date();
-            
-            // حساب الفرق بالأيام
             const diffTime = today - startOfRamadan;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            return diffDays; // إذا كان 1 يعني أول يوم، إذا كان 0 أو سالب يعني لم يبدأ
+            return diffDays;
         }
+
+        // --- العد التنازلي المطور (أيام، ساعات، دقائق، ثواني) ---
+        function updateCountdown() {
+            const target = new Date("Feb 18, 2026 00:00:00").getTime();
+            const now = new Date().getTime();
+            const diff = target - now;
+
+            if (diff <= 0) {
+                document.getElementById("countdown").innerHTML = "<b style='color:var(--success); font-size:1.5rem;'>🌙 رمضان كريم!</b>";
+                return;
+            }
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            document.getElementById("countdown").innerHTML = `
+                <div style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 5px;">متبقي على شهر الخير:</div>
+                <span class="timer-unit">${days}</span> يوم و 
+                <span class="timer-unit">${hours}</span> ساعة و 
+                <span class="timer-unit">${minutes}</span> دقيقة و 
+                <span class="timer-unit">${seconds}</span> ثانية
+            `;
+        }
+        setInterval(updateCountdown, 1000);
 
         // --- وظائف الإدارة ---
         window.checkQuestion = async () => {
@@ -180,7 +206,7 @@
         window.deleteQuestion = async () => {
             const day = document.getElementById('adm-day').value;
             if(!day) return alert("حدد اليوم المراد حذفه");
-            if(confirm("هل أنت متأكد من حذف هذا السؤال؟")) {
+            if(confirm("هل أنت متأكد؟")) {
                 await deleteDoc(doc(db, "questions", `day_${day}`));
                 alert("تم الحذف");
                 location.reload();
@@ -200,7 +226,7 @@
             location.reload();
         };
 
-        // --- مواقيت الصلاة ---
+        // --- مواقيت الصلاة بورسعيد ---
         async function fetchPrayers() {
             try {
                 const res = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=Port%20Said&country=Egypt&method=5`);
@@ -218,58 +244,38 @@
             } catch (e) { document.getElementById('prayer-info').innerText = "بورسعيد: سبحان الله وبحمده"; }
         }
 
-        // --- نظام الأسئلة الذكي بالتاريخ ---
+        // --- نظام الأسئلة وقفل الإجابة ---
         async function loadQuestion(currentRamadanDay, lastSolvedDay) {
             const box = document.getElementById('options-box'); box.innerHTML = '';
-            
-            // إذا كان قبل رمضان
             if (currentRamadanDay <= 0) {
                 document.getElementById('q-text').innerText = "المسابقة تنطلق أول يوم رمضان.. كن مستعداً! 🌙";
                 return;
             }
-
             document.getElementById('ramadan-day-status').innerText = `🌙 نحن الآن في اليوم ${currentRamadanDay} من رمضان`;
-
             const qSnap = await getDoc(doc(db, "questions", `day_${currentRamadanDay}`));
-            
             if (qSnap.exists()) {
                 const q = qSnap.data();
                 document.getElementById('q-text').innerText = q.text;
-                
-                // فحص هل حل المستخدم سؤال اليوم (بناءً على رقم اليوم الحالي)
                 const isSolved = (lastSolvedDay === currentRamadanDay);
-
                 q.options.forEach(opt => {
                     const b = document.createElement('button');
                     b.className = 'opt-btn';
                     b.innerText = opt.trim();
                     if(isSolved) b.disabled = true;
-                    
                     b.onclick = async () => {
                         const allBtns = box.querySelectorAll('button');
                         allBtns.forEach(btn => btn.disabled = true);
-
                         const isCorrect = opt.trim() === q.correct.trim();
-                        
-                        // تسجيل أن المستخدم قام بالمحاولة لهذا اليوم
-                        await updateDoc(doc(db, "users", auth.currentUser.uid), { 
-                            lastSolved: currentRamadanDay 
-                        });
-
+                        await updateDoc(doc(db, "users", auth.currentUser.uid), { lastSolved: currentRamadanDay });
                         if(isCorrect) {
                             await updateDoc(doc(db, "users", auth.currentUser.uid), { score: increment(10) });
                             document.getElementById('user-score').innerText = parseInt(document.getElementById('user-score').innerText) + 10;
                         }
-
                         showResult(isCorrect, q.explanation);
-                        document.getElementById('q-text').innerHTML += isCorrect ? "<br><small style='color:var(--success)'>✅ إجابة صحيحة</small>" : "<br><small style='color:var(--red)'>❌ انتهت محاولتك</small>";
                     };
                     box.appendChild(b);
                 });
-                if(isSolved) document.getElementById('q-text').innerHTML += "<br><small style='color:var(--gold)'>⚠️ تم تسجيل محاولتك لهذا اليوم</small>";
-            } else {
-                document.getElementById('q-text').innerText = "جاري تحضير سؤال اليوم.. انتظرونا!";
-            }
+            } else { document.getElementById('q-text').innerText = "جاري تحضير سؤال اليوم.. انتظرونا!"; }
         }
 
         // --- نظام التحقق ---
@@ -287,15 +293,9 @@
                 const data = snap.data();
                 document.getElementById('user-display').innerText = "أهلاً " + user.email.split('@')[0];
                 document.getElementById('user-score').innerText = data.score;
-
-                if(user.email === "m@m.com" && data.role === "admin") {
-                    document.getElementById('admin-area').style.display = 'block';
-                }
-                
-                // تشغيل النظام بالتاريخ الحالي
+                if(user.email === "m@m.com" && data.role === "admin") document.getElementById('admin-area').style.display = 'block';
                 const ramadanDay = getRamadanDay();
                 loadQuestion(ramadanDay, data.lastSolved);
-                
                 loadLeaderboard();
                 fetchPrayers();
             } else {
@@ -304,7 +304,6 @@
             }
         });
 
-        // --- دوال مساعدة ---
         async function loadLeaderboard() {
             const q = query(collection(db, "users"), orderBy("score", "desc"), limit(5));
             const snap = await getDocs(q);
@@ -314,17 +313,6 @@
                 div.innerHTML += `<div class="leader-item"><span>#${i+1} ${d.email.split('@')[0]}</span> <b>${d.score}</b></div>`;
             });
         }
-
-        function updateCountdown() {
-            const target = new Date("Feb 18, 2026 00:00:00").getTime();
-            const now = new Date().getTime();
-            const diff = target - now;
-            if (diff <= 0) { document.getElementById("countdown").innerText = "رمضان كريم!"; return; }
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            document.getElementById("countdown").innerText = `متبقي على رمضان: ${days} يوم و ${hours} ساعة`;
-        }
-        setInterval(updateCountdown, 1000);
 
         window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(() => alert("خطأ دخول"));
         window.handleSignUp = () => createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(() => alert("خطأ تسجيل"));
