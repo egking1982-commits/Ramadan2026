@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #1a2a6c; --gold: #f2a900; --dark: #0f172a; --card: #1e293b; --red: #ef4444; --success: #22c55e; --blue: #3b82f6;
+            --primary: #1a2a6c; --gold: #f2a900; --silver: #c0c0c0; --bronze: #cd7f32; --dark: #0f172a; --card: #1e293b; --red: #ef4444; --success: #22c55e; --blue: #3b82f6;
         }
         body {
             font-family: 'Cairo', sans-serif; background: radial-gradient(circle at top, #1e293b, #0f172a);
@@ -21,110 +21,137 @@
             background: var(--card); padding: 20px; border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.05);
         }
+        /* تصميم شريط الأذكار */
+        .dhikr-bar {
+            background: rgba(242, 169, 0, 0.1); border: 1px dashed var(--gold);
+            padding: 10px; border-radius: 15px; margin-bottom: 15px;
+            font-weight: 600; color: var(--gold); animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
+
         .prayer-bar {
             background: linear-gradient(90deg, rgba(242, 169, 0, 0.15), transparent);
             border-right: 4px solid var(--gold); padding: 12px; border-radius: 10px; margin-bottom: 15px; font-weight: bold;
-            transition: 0.3s;
         }
-        .prayer-near { animation: pulseGold 1.5s infinite; border-color: var(--red); }
-        @keyframes pulseGold { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 10000; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: var(--card); width: 85%; max-width: 400px; padding: 25px; border-radius: 25px;
+            border: 2px solid var(--gold); text-align: center;
+        }
+        .exp-box { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; margin: 15px 0; font-size: 0.95rem; line-height: 1.6; color: #cbd5e1; }
 
         button {
             width: 100%; padding: 14px; margin: 8px 0; border-radius: 12px; border: none;
             font-weight: 700; cursor: pointer; font-family: 'Cairo';
             background: linear-gradient(135deg, var(--gold), #b8860b); color: #000; transition: 0.3s;
         }
+        button:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
         input, textarea {
             width: 95%; padding: 12px; margin: 8px 0; border-radius: 10px;
             border: 1px solid #334155; background: #0f172a; color: white; text-align: center; font-family: 'Cairo';
         }
-        .user-admin-item { 
-            display: flex; justify-content: space-between; align-items: center; 
-            padding: 12px; border-bottom: 1px solid #334155; font-size: 0.85rem;
+        
+        .leaderboard-item { 
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 15px; border-radius: 12px; background: rgba(255,255,255,0.03); 
+            margin-bottom: 8px; font-size: 0.95rem; border: 1px solid transparent;
+            transition: all 0.4s ease;
         }
-        .btn-small { width: auto; padding: 5px 8px; font-size: 0.7rem; margin: 0; color: white; }
+        .rank-1 { border-color: var(--gold); background: rgba(242, 169, 0, 0.15); box-shadow: 0 0 10px rgba(242, 169, 0, 0.2); }
+        .rank-2 { border-color: var(--silver); background: rgba(192, 192, 192, 0.1); }
+        .rank-3 { border-color: var(--bronze); background: rgba(205, 127, 50, 0.1); }
+        .medal { font-size: 1.2rem; margin-left: 8px; }
+
+        .user-admin-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #334155; font-size: 0.8rem; }
+        .btn-small { width: auto; padding: 4px 8px; font-size: 0.65rem; margin: 2px; color: white; }
         .btn-red { background: var(--red); }
         .btn-blue { background: var(--blue); }
         
-        /* Toast Notifications */
         #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; width: 90%; max-width: 400px; }
-        .toast { padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; color: white; font-weight: 600; box-shadow: 0 5px 15px rgba(0,0,0,0.3); animation: slideIn 0.3s ease-out; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .toast { padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; color: white; font-weight: 600; animation: slideIn 0.3s ease-out; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
         @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .toast-success { background: var(--success); }
-        .toast-error { background: var(--red); }
-        .toast-info { background: var(--blue); }
-        .toast-gold { background: var(--gold); color: #000; }
-
-        .wait-box { padding: 15px; border: 1px dashed var(--gold); border-radius: 15px; background: rgba(242,169,0,0.05); margin-top: 10px; color: var(--gold); }
-        #countdown, #quiz-timer { font-family: monospace; font-size: 1.1rem; letter-spacing: 1px; }
-        .leaderboard-item { display: flex; justify-content: space-between; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 10px; margin-bottom: 5px; border-right: 4px solid var(--gold); }
-        .my-rank { background: rgba(242, 169, 0, 0.1); border: 1px solid var(--gold); }
+        #countdown { font-family: monospace; font-size: 1.2rem; color: var(--gold); margin: 15px 0; font-weight: 800; }
     </style>
 </head>
 <body>
 
+    <audio id="login-sound" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
+    <audio id="adhan-sound" src="https://www.islamcan.com/common/adhan/makkah.mp3"></audio>
+
     <div id="toast-container"></div>
+
+    <div id="explanation-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-status"></h2>
+            <div class="exp-box" id="modal-text"></div>
+            <button onclick="location.reload()">استمرار ✨</button>
+        </div>
+    </div>
 
     <div id="login-page" class="page active">
         <div class="card">
             <h1>🌙</h1>
             <h2>رمضان بورسعيد 1447</h2>
-            <div style="color: #94a3b8; font-size: 0.8rem;">المتبقي على شهر رمضان:</div>
-            <div id="countdown" style="margin-bottom: 20px; color: var(--gold); font-weight: bold;">⏳ جاري الحساب...</div>
+            <div id="countdown">⏳ جاري حساب الوقت...</div>
             <input type="email" id="email" placeholder="البريد الإلكتروني">
             <input type="password" id="password" placeholder="كلمة السر">
             <button onclick="handleLogin()">دخول</button>
-            <button style="background:none; color:var(--gold); border:1px solid var(--gold)" onclick="handleSignUp()">إنشاء حساب</button>
         </div>
     </div>
 
     <div id="main-page" class="page">
-        <div class="prayer-bar" id="prayer-info">📍 بورسعيد | جاري التحديث...</div>
+        <div class="dhikr-bar" id="dhikr-text">ألا بذكر الله تطمئن القلوب</div>
+        
+        <div class="prayer-bar" id="prayer-info">📍 بورسعيد | جاري تحديد الصلاة القادمة...</div>
         
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span id="user-display" style="color: var(--gold); font-weight: 800;"></span>
                 <span>النقاط: <b id="user-score">0</b></span>
             </div>
-            <div id="random-azkar" style="margin-top: 10px; font-style: italic; color: #94a3b8;"></div>
         </div>
 
         <div id="quiz-area" class="card">
             <h3 style="color: var(--gold);">⭐ سؤال اليوم</h3>
-            <div id="q-text"></div>
+            <div id="q-text">السؤال يظهر يومياً الساعة 8:30 مساءً...</div>
             <div id="options-box" style="margin-top: 10px;"></div>
         </div>
 
         <div class="card">
-            <h3 style="color: var(--gold); margin-bottom: 15px;">🏆 لوحة الشرف (Top 5)</h3>
-            <div id="leaderboard-list"></div>
+            <h3 style="color: var(--gold);">🏆 لوحة الشرف (مباشر ⚡)</h3>
+            <div id="leaderboard-list">جاري التحميل...</div>
         </div>
 
         <div id="admin-area" style="display:none;" class="card">
             <h3 style="color:var(--gold)">🛠️ لوحة التحكم</h3>
-            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; margin-bottom: 15px;">
-                <h4>👥 إدارة المتسابقين</h4>
-                <input type="text" id="user-search" placeholder="بحث..." oninput="filterUsers()">
-                <div id="users-admin-list" style="max-height: 200px; overflow-y: auto;"></div>
-                <button onclick="resetAllScores()" style="background: #f59e0b; font-size: 0.8rem; padding: 8px;">تصفير نقاط الجميع ⚠️</button>
-            </div>
             <div style="text-align: right;">
                 <h4>📝 إدارة الأسئلة</h4>
                 <input type="number" id="adm-day" placeholder="رقم اليوم">
                 <textarea id="adm-text" placeholder="نص السؤال"></textarea>
                 <input type="text" id="adm-opts" placeholder="الخيارات (افصل بـ ,)">
                 <input type="text" id="adm-correct" placeholder="الإجابة الصحيحة">
-                <button onclick="quickAdd()">حفظ السؤال ✅</button>
+                <textarea id="adm-explanation" placeholder="التفسير التعليمي"></textarea>
+                <button onclick="quickAdd()" style="background: var(--success); color: white;">حفظ السؤال ✅</button>
+            </div>
+            
+            <div style="margin-top: 20px; text-align: right;">
+                <h4>👥 إدارة المتسابقين</h4>
+                <div id="users-admin-list" style="max-height: 250px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 10px;"></div>
+                <button onclick="resetAllScores()" style="background: #f59e0b; margin-top: 10px;">تصفير جميع النقاط ⚠️</button>
             </div>
         </div>
         
-        <button onclick="logout()" style="background:none; color:var(--red); border:1px solid var(--red); width: auto; font-size: 0.8rem; padding: 8px 20px;">خروج</button>
+        <button onclick="logout()" style="background:none; color:var(--red); border:1px solid var(--red); width: auto; font-size: 0.8rem;">خروج</button>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, collection, getDocs, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, collection, onSnapshot, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCKNwu6R3wjeHvWOrpiWkx5fnk0luEX_z4",
@@ -138,203 +165,219 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-
-        const RAMADAN_START = new Date("Feb 18, 2026 00:00:00").getTime();
-        const azkarList = ["سبحان الله وبحمده","الحمد لله","لا إله إلا الله","الله أكبر","لا حول ولا قوة إلا بالله","حسبنا الله ونعم الوكيل","لا اله الا انت سبحان اني كنت من الظالمين"];
         const ADMIN_EMAIL = "m@m.com";
+        const RAMADAN_START = new Date("Feb 18, 2026 20:30:00").getTime();
 
-        // --- نظام التنبيهات (Toast) ---
-        function showToast(msg, type = "info") {
+        // ميزة الأذكار المتغيرة
+        const dhikrs = [
+            "سبحان الله", "الحمد لله", "لا إله إلا الله", "الله أكبر", 
+            "لا حول ولا قوة إلا بالله", "أستغفر الله", "حسبنا الله ونعم الوكيل",
+            "لا إله إلا أنت سبحانك إني كنت من الظالمين", 
+            "اللهم صلِّ على سيدنا محمد وعلى آله وصحبه وسلم"
+        ];
+        
+        function rotateDhikr() {
+            const el = document.getElementById('dhikr-text');
+            if(el) {
+                const randomDhikr = dhikrs[Math.floor(Math.random() * dhikrs.length)];
+                el.innerText = `✨ ${randomDhikr} ✨`;
+            }
+        }
+        setInterval(rotateDhikr, 10000); // تغيير الذكر كل 10 ثواني
+
+        function showToast(m, type="info") {
             const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = msg;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 4000);
+            const t = document.createElement('div');
+            t.className = `toast`;
+            t.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--red)' : 'var(--blue)';
+            t.innerText = m;
+            container.appendChild(t);
+            setTimeout(() => t.remove(), 3500);
         }
 
-        // --- عداد رمضان ---
         function runCountdown() {
             const now = new Date().getTime();
             const diff = RAMADAN_START - now;
             const el = document.getElementById("countdown");
-            if (!el) return;
             if (diff > 0) {
-                const days = Math.floor(diff / 86400000);
-                const hrs = Math.floor((diff % 86400000) / 3600000);
-                const mins = Math.floor((diff % 3600000) / 60000);
-                const secs = Math.floor((diff % 60000) / 1000);
-                el.innerHTML = `${days} يوم و ${hrs}:${mins}:${secs}`;
+                const d = Math.floor(diff / 86400000);
+                const h = Math.floor((diff % 86400000) / 3600000);
+                const m = Math.floor((diff % 3600000) / 60000);
+                const s = Math.floor((diff % 60000) / 1000);
+                el.innerHTML = `${d} يوم و ${h}:${m}:${s}`;
             } else { el.innerHTML = "🌙 رمضان كريم!"; }
         }
         setInterval(runCountdown, 1000);
 
-        // --- لوحة الشرف (استثناء الآدمن) ---
-        async function loadLeaderboard() {
-            const q = query(
-                collection(db, "users"), 
-                where("role", "==", "user"), // استثناء أي حساب برتبة آدمن
-                orderBy("score", "desc"), 
-                limit(5)
-            );
-            const snap = await getDocs(q);
-            const list = document.getElementById('leaderboard-list');
-            list.innerHTML = snap.docs.map((d, i) => {
-                const isMe = d.id === auth.currentUser?.uid;
-                return `
-                <div class="leaderboard-item ${isMe ? 'my-rank' : ''}">
-                    <span>${i+1}. ${d.data().email.split('@')[0]} ${isMe ? '(أنت)' : ''}</span>
-                    <span style="color:var(--gold)">${d.data().score || 0} نقطة</span>
-                </div>
-            `}).join('');
-        }
-
-        // --- إدارة المتسابقين ---
-        let allUsers = [];
-        async function loadAdminUsers() {
-            const snap = await getDocs(collection(db, "users"));
-            allUsers = snap.docs.map(d => ({id: d.id, ...d.data()}));
-            renderUserList(allUsers);
-        }
-        function renderUserList(list) {
-            document.getElementById('users-admin-list').innerHTML = list.map(u => `
-                <div class="user-admin-item">
-                    <span>${u.email.split('@')[0]} (${u.score || 0})</span>
-                    <div>
-                        <button class="btn-small btn-blue" onclick="forceResetPass('${u.id}')">تصفير PASS</button>
-                        <button class="btn-small btn-red" onclick="deleteUser('${u.id}')">حذف</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // --- المسابقة والوقت ---
-        function updateQuizTimer() {
-            const now = new Date();
-            const target = new Date();
-            target.setHours(20, 30, 0); 
-            const diff = target - now;
-            const timerEl = document.getElementById('quiz-timer');
-            if (timerEl && diff > 0) {
-                const hrs = Math.floor(diff / 3600000);
-                const mins = Math.floor((diff % 3600000) / 60000);
-                const secs = Math.floor((diff % 60000) / 1000);
-                timerEl.innerHTML = `متبقي: ${hrs}:${mins}:${secs}`;
-            } else if (diff <= 0) { location.reload(); }
-        }
-
-        async function setupQuiz(lastSolved) {
-            const qText = document.getElementById('q-text');
-            const box = document.getElementById('options-box');
-            const rDay = Math.ceil((new Date().getTime() - RAMADAN_START) / 86400000);
-            if (rDay <= 0) { qText.innerText = "المسابقة تنطلق أول رمضان."; return; }
-            
-            const now = new Date();
-            const targetTime = 20 * 60 + 30; 
-            const currentTime = now.getHours() * 60 + now.getMinutes();
-
-            if (currentTime < targetTime) {
-                qText.innerHTML = `<div class="wait-box">ينشر سؤال اليوم 8:30 م<br><span id="quiz-timer"></span></div>`;
-                setInterval(updateQuizTimer, 1000);
-                return;
-            }
-
-            const qSnap = await getDoc(doc(db, "questions", `day_${rDay}`));
-            if(qSnap.exists()) {
-                const q = qSnap.data(); qText.innerText = q.text; box.innerHTML = '';
-                q.options.forEach(opt => {
-                    const b = document.createElement('button'); b.innerText = opt;
-                    if(lastSolved === rDay) b.disabled = true;
-                    b.onclick = async () => {
-                        const userRef = doc(db, "users", auth.currentUser.uid);
-                        await updateDoc(userRef, {lastSolved: rDay});
-                        if(opt.trim() === q.correct.trim() && auth.currentUser.email !== ADMIN_EMAIL) {
-                            await updateDoc(userRef, {score: increment(10)});
-                            showToast("إجابة صحيحة! +10 نقاط 🌟", "success");
-                        } else {
-                            showToast("إجابة خاطئة أو حساب مدير 🌙", "error");
-                        }
-                        setTimeout(() => location.reload(), 2000);
-                    };
-                    box.appendChild(b);
-                });
-                if(lastSolved === rDay) qText.innerHTML += "<br><small style='color:var(--success)'>تمت الإجابة ✅</small>";
-            }
-        }
-
-        // --- مراقبة المستخدم ---
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                const userRef = doc(db, "users", user.uid);
-                let snap = await getDoc(userRef);
-                const role = user.email === ADMIN_EMAIL ? "admin" : "user";
-                if(!snap.exists()) {
-                    await setDoc(userRef, {email: user.email, score: 0, role: role, lastSolved: 0, forceReset: false});
-                    snap = await getDoc(userRef);
-                }
-                const data = snap.data();
-                if(data.forceReset) {
-                    await updatePassword(user, "123456");
-                    await updateDoc(userRef, { forceReset: false });
-                    showToast("تم تصفير كلمة سرك إلى 123456", "info");
-                }
-                document.getElementById('login-page').style.display = 'none';
-                document.getElementById('main-page').style.display = 'block';
-                document.getElementById('user-display').innerText = data.email.split('@')[0];
-                document.getElementById('user-score').innerText = data.score;
-                if(data.role === "admin") { document.getElementById('admin-area').style.display = 'block'; loadAdminUsers(); }
-                setupQuiz(data.lastSolved);
-                loadLeaderboard();
-                fetchPrayers();
-                showToast(`أهلاً بك يا ${data.email.split('@')[0]} 🌙`, "gold");
-                setInterval(() => { document.getElementById('random-azkar').innerText = azkarList[Math.floor(Math.random() * azkarList.length)]; }, 5000);
-            } else {
-                document.getElementById('login-page').style.display = 'block';
-                document.getElementById('main-page').style.display = 'none';
-            }
-        });
-
-        // --- الدوال العامة ---
-        window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(()=>showToast("خطأ في البيانات", "error"));
-        window.handleSignUp = () => createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(()=>showToast("خطأ في التسجيل", "error"));
-        window.logout = () => signOut(auth).then(() => location.reload());
-        window.forceResetPass = async (id) => { if(confirm("تصفير كلمة السر؟")) { await updateDoc(doc(db, "users", id), {forceReset:true}); showToast("تمت الجدولة", "info"); } };
-        window.deleteUser = async (id) => { if(confirm("حذف المستخدم؟")) { await deleteDoc(doc(db, "users", id)); loadAdminUsers(); showToast("تم الحذف", "error"); } };
-        window.resetAllScores = async () => { if(confirm("تصفير الكل؟")) { const s = await getDocs(collection(db, "users")); await Promise.all(s.docs.map(d => updateDoc(doc(db, "users", d.id), {score:0}))); location.reload(); } };
-        window.filterUsers = () => renderUserList(allUsers.filter(u => u.email.toLowerCase().includes(document.getElementById('user-search').value.toLowerCase())));
-        window.quickAdd = async () => {
-            await setDoc(doc(db, "questions", `day_${document.getElementById('adm-day').value}`), {
-                text: document.getElementById('adm-text').value,
-                options: document.getElementById('adm-opts').value.split(','),
-                correct: document.getElementById('adm-correct').value.trim()
-            });
-            showToast("تم حفظ السؤال بنجاح ✅", "success");
-        };
-
-        async function fetchPrayers() {
+        async function fetchNextPrayer() {
             try {
                 const res = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=Port%20Said&country=Egypt&method=5`);
                 const json = await res.json();
-                const p = json.data.timings;
+                const timings = json.data.timings;
                 const now = new Date();
-                const cur = now.getHours() * 60 + now.getMinutes();
-                const sch = [{n:"الفجر",t:p.Fajr},{n:"الظهر",t:p.Dhuhr},{n:"العصر",t:p.Asr},{n:"المغرب",t:p.Maghrib},{n:"العشاء",t:p.Isha}];
-                let next = sch.find(s => (parseInt(s.t.split(':')[0])*60 + parseInt(s.t.split(':')[1])) > cur) || sch[0];
-                
-                const nextTime = parseInt(next.t.split(':')[0])*60 + parseInt(next.t.split(':')[1]);
-                const diff = nextTime - cur;
-                
-                const bar = document.getElementById('prayer-info');
-                bar.innerHTML = `📍 بورسعيد | القادمة: <b>${next.n} (${next.t})</b>`;
-                
-                if(diff > 0 && diff <= 15) {
-                    bar.classList.add('prayer-near');
-                    showToast(`اقترب موعد صلاة ${next.n} 🕌`, "gold");
-                } else {
-                    bar.classList.remove('prayer-near');
+                const currentH = now.getHours();
+                const currentM = now.getMinutes();
+                const currentMinutes = currentH * 60 + currentM;
+
+                const prayers = [
+                    { name: "الفجر", time: timings.Fajr },
+                    { name: "الظهر", time: timings.Dhuhr },
+                    { name: "العصر", time: timings.Asr },
+                    { name: "المغرب", time: timings.Maghrib },
+                    { name: "العشاء", time: timings.Isha }
+                ];
+
+                let nextPrayer = null;
+                for (let p of prayers) {
+                    const [h, m] = p.time.split(':').map(Number);
+                    if (h === currentH && m === currentM) {
+                        const adhan = document.getElementById('adhan-sound');
+                        if (adhan.paused) { adhan.play().catch(()=>{}); showToast(`أذان ${p.name}`, "success"); }
+                    }
+                    if ((h * 60 + m) > currentMinutes && !nextPrayer) nextPrayer = p;
                 }
+                if (!nextPrayer) nextPrayer = prayers[0];
+                document.getElementById('prayer-info').innerHTML = `📍 بورسعيد | القادمة: <b style="color:var(--gold)">${nextPrayer.name} (${nextPrayer.time})</b>`;
             } catch (e) {}
         }
+        setInterval(fetchNextPrayer, 60000);
+
+        function initRealtimeLeaderboard() {
+            const q = query(
+                collection(db, "users"), 
+                where("email", "!=", ADMIN_EMAIL),
+                orderBy("email"), 
+                orderBy("score", "desc"), 
+                limit(10)
+            );
+            
+            onSnapshot(q, (snap) => {
+                const list = document.getElementById('leaderboard-list');
+                list.innerHTML = '';
+                let users = [];
+                snap.forEach(doc => users.push(doc.data()));
+                users.sort((a, b) => b.score - a.score);
+
+                let rank = 1;
+                users.forEach(d => {
+                    const item = document.createElement('div');
+                    let rankClass = '';
+                    let medal = '';
+                    if(rank === 1) { rankClass = 'rank-1'; medal = '<span class="medal">🥇</span>'; }
+                    else if(rank === 2) { rankClass = 'rank-2'; medal = '<span class="medal">🥈</span>'; }
+                    else if(rank === 3) { rankClass = 'rank-3'; medal = '<span class="medal">🥉</span>'; }
+                    
+                    item.className = `leaderboard-item ${rankClass}`;
+                    item.innerHTML = `<span>${medal} <b>${rank}.</b> ${d.email.split('@')[0]}</span> <span style="font-weight:800">${d.score}</span>`;
+                    list.appendChild(item);
+                    rank++;
+                });
+            });
+        }
+
+        async function setupQuiz(solvedDay) {
+            const now = new Date().getTime();
+            if (now < RAMADAN_START) {
+                document.getElementById('q-text').innerText = "انتظروا أول سؤال يوم 1 رمضان الساعة 8:30 مساءً 🌙";
+                return;
+            }
+
+            const rDay = Math.floor((now - RAMADAN_START) / 86400000) + 1;
+            const qSnap = await getDoc(doc(db, "questions", `day_${rDay}`));
+            
+            if(qSnap.exists()) {
+                const q = qSnap.data();
+                document.getElementById('q-text').innerText = q.text;
+                const box = document.getElementById('options-box');
+                box.innerHTML = '';
+                q.options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.innerText = opt;
+                    if(solvedDay === rDay) btn.disabled = true;
+                    btn.onclick = async () => {
+                        const isCorrect = opt.trim() === q.correct.trim();
+                        await updateDoc(doc(db, "users", auth.currentUser.uid), {lastSolved: rDay});
+                        if(isCorrect && auth.currentUser.email !== ADMIN_EMAIL) await updateDoc(doc(db, "users", auth.currentUser.uid), {score: increment(10)});
+                        document.getElementById('explanation-modal').style.display = 'flex';
+                        document.getElementById('modal-status').innerText = isCorrect ? "إجابة صحيحة! 🎉" : "إجابة خاطئة 🌙";
+                        document.getElementById('modal-status').style.color = isCorrect ? "var(--success)" : "var(--red)";
+                        document.getElementById('modal-text').innerHTML = `<b>المعلومة:</b><br>${q.explanation || "لا يوجد تفسير متاح."}`;
+                    };
+                    box.appendChild(btn);
+                });
+            } else {
+                document.getElementById('q-text').innerText = "سؤال اليوم يظهر الساعة 8:30 مساءً... انتظرونا!";
+            }
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                document.getElementById('login-sound').play().catch(()=>{});
+                const userRef = doc(db, "users", user.uid);
+                
+                onSnapshot(userRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        document.getElementById('user-score').innerText = data.score;
+                        if(data.forceReset) {
+                            updatePassword(user, "123456");
+                            updateDoc(userRef, {forceReset: false});
+                            showToast("تم تصفير كلمة سرك إلى 123456", "success");
+                        }
+                        setupQuiz(data.lastSolved);
+                    }
+                });
+
+                let snap = await getDoc(userRef);
+                if(!snap.exists()) await setDoc(userRef, {email: user.email, score: 0, lastSolved: 0, forceReset: false});
+                
+                const data = (await getDoc(userRef)).data();
+                document.getElementById('login-page').classList.remove('active');
+                document.getElementById('main-page').classList.add('active');
+                document.getElementById('user-display').innerText = user.email.split('@')[0];
+                
+                if(user.email === ADMIN_EMAIL) {
+                    document.getElementById('admin-area').style.display = 'block';
+                    loadAdminUsers();
+                }
+                fetchNextPrayer();
+                initRealtimeLeaderboard();
+                rotateDhikr(); // تشغيل الأذكار فور الدخول
+            }
+        });
+
+        window.loadAdminUsers = async () => {
+            const q = query(collection(db, "users"));
+            onSnapshot(q, (snap) => {
+                document.getElementById('users-admin-list').innerHTML = snap.docs.map(d => `
+                    <div class="user-admin-item">
+                        <span>${d.data().email.split('@')[0]} (${d.data().score})</span>
+                        <div>
+                            <button class="btn-small btn-blue" onclick="resetUserPass('${d.id}')">قفل</button>
+                            <button class="btn-small btn-red" onclick="deleteUser('${d.id}')">حذف</button>
+                        </div>
+                    </div>
+                `).join('');
+            });
+        }
+
+        window.resetUserPass = async (id) => { if(confirm("تصفير كلمة السر لـ 123456؟")) await updateDoc(doc(db, "users", id), {forceReset: true}); }
+        window.deleteUser = async (id) => { if(confirm("حذف نهائي؟")) { await deleteDoc(doc(db, "users", id)); } }
+        window.resetAllScores = async () => { if(confirm("تصفير نقاط الجميع؟")) { const s = await getDocs(collection(db, "users")); s.forEach(u => updateDoc(doc(db, "users", u.id), {score: 0})); showToast("تم التصفير"); } }
+
+        window.quickAdd = async () => {
+            const d = document.getElementById('adm-day').value;
+            await setDoc(doc(db, "questions", `day_${d}`), {
+                text: document.getElementById('adm-text').value,
+                options: document.getElementById('adm-opts').value.split(','),
+                correct: document.getElementById('adm-correct').value.trim(),
+                explanation: document.getElementById('adm-explanation').value
+            });
+            showToast("تم الحفظ ✅", "success");
+        };
+
+        window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(()=>showToast("بيانات خاطئة", "error"));
+        window.logout = () => signOut(auth).then(()=>location.reload());
     </script>
 </body>
 </html>
