@@ -21,7 +21,6 @@
             background: var(--card); padding: 20px; border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.05);
         }
-        /* تصميم شريط الأذكار */
         .dhikr-bar {
             background: rgba(242, 169, 0, 0.1); border: 1px dashed var(--gold);
             padding: 10px; border-radius: 15px; margin-bottom: 15px;
@@ -50,6 +49,9 @@
             background: linear-gradient(135deg, var(--gold), #b8860b); color: #000; transition: 0.3s;
         }
         button:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
+        .btn-secondary { background: transparent; color: var(--gold); border: 1px solid var(--gold); margin-top: 5px; }
+        .btn-secondary:hover { background: rgba(242, 169, 0, 0.1); }
+
         input, textarea {
             width: 95%; padding: 12px; margin: 8px 0; border-radius: 10px;
             border: 1px solid #334155; background: #0f172a; color: white; text-align: center; font-family: 'Cairo';
@@ -100,12 +102,13 @@
             <input type="email" id="email" placeholder="البريد الإلكتروني">
             <input type="password" id="password" placeholder="كلمة السر">
             <button onclick="handleLogin()">دخول</button>
+            <button onclick="handleSignUp()" class="btn-secondary">إنشاء حساب جديد ✨</button>
+            <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 10px;">للمشاركة في المسابقة، قم بإنشاء حسابك الآن</p>
         </div>
     </div>
 
     <div id="main-page" class="page">
         <div class="dhikr-bar" id="dhikr-text">ألا بذكر الله تطمئن القلوب</div>
-        
         <div class="prayer-bar" id="prayer-info">📍 بورسعيد | جاري تحديد الصلاة القادمة...</div>
         
         <div class="card">
@@ -137,7 +140,6 @@
                 <textarea id="adm-explanation" placeholder="التفسير التعليمي"></textarea>
                 <button onclick="quickAdd()" style="background: var(--success); color: white;">حفظ السؤال ✅</button>
             </div>
-            
             <div style="margin-top: 20px; text-align: right;">
                 <h4>👥 إدارة المتسابقين</h4>
                 <div id="users-admin-list" style="max-height: 250px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 10px;"></div>
@@ -150,7 +152,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, collection, onSnapshot, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -168,7 +170,6 @@
         const ADMIN_EMAIL = "m@m.com";
         const RAMADAN_START = new Date("Feb 18, 2026 20:30:00").getTime();
 
-        // ميزة الأذكار المتغيرة
         const dhikrs = [
             "سبحان الله", "الحمد لله", "لا إله إلا الله", "الله أكبر", 
             "لا حول ولا قوة إلا بالله", "أستغفر الله", "حسبنا الله ونعم الوكيل",
@@ -183,7 +184,7 @@
                 el.innerText = `✨ ${randomDhikr} ✨`;
             }
         }
-        setInterval(rotateDhikr, 10000); // تغيير الذكر كل 10 ثواني
+        setInterval(rotateDhikr, 10000);
 
         function showToast(m, type="info") {
             const container = document.getElementById('toast-container');
@@ -331,7 +332,6 @@
                 let snap = await getDoc(userRef);
                 if(!snap.exists()) await setDoc(userRef, {email: user.email, score: 0, lastSolved: 0, forceReset: false});
                 
-                const data = (await getDoc(userRef)).data();
                 document.getElementById('login-page').classList.remove('active');
                 document.getElementById('main-page').classList.add('active');
                 document.getElementById('user-display').innerText = user.email.split('@')[0];
@@ -342,9 +342,35 @@
                 }
                 fetchNextPrayer();
                 initRealtimeLeaderboard();
-                rotateDhikr(); // تشغيل الأذكار فور الدخول
+                rotateDhikr();
             }
         });
+
+        // ميزة إنشاء حساب جديد
+        window.handleSignUp = async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            if(!email || !password) { showToast("يرجى ملء البيانات", "error"); return; }
+            
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                // إنشاء ملف المستخدم في قاعدة البيانات فوراً
+                await setDoc(doc(db, "users", user.uid), {
+                    email: user.email,
+                    score: 0,
+                    lastSolved: 0,
+                    forceReset: false
+                });
+                showToast("تم إنشاء الحساب بنجاح 🌙", "success");
+            } catch (error) {
+                let msg = "خطأ في إنشاء الحساب";
+                if(error.code === 'auth/email-already-in-use') msg = "هذا البريد مستخدم بالفعل";
+                if(error.code === 'auth/weak-password') msg = "كلمة السر ضعيفة (6 رموز فأكثر)";
+                if(error.code === 'auth/invalid-email') msg = "البريد غير صحيح";
+                showToast(msg, "error");
+            }
+        };
 
         window.loadAdminUsers = async () => {
             const q = query(collection(db, "users"));
