@@ -33,6 +33,13 @@
             border-right: 4px solid var(--gold); padding: 12px; border-radius: 10px; margin-bottom: 15px; font-weight: bold;
         }
 
+        /* تنسيق المؤقت الزمني الجديد */
+        #quiz-timer {
+            font-size: 1.8rem; color: var(--red); font-weight: 800; margin-bottom: 10px; display: none;
+        }
+        .timer-warn { animation: blinker 0.5s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 10000; justify-content: center; align-items: center;
@@ -120,7 +127,7 @@
 
         <div id="quiz-area" class="card">
             <h3 style="color: var(--gold);">⭐ سؤال اليوم</h3>
-            <div id="q-text">السؤال يظهر يومياً الساعة 8:30 مساءً...</div>
+            <div id="quiz-timer">60</div> <div id="q-text">السؤال يظهر يومياً الساعة 8:30 مساءً...</div>
             <div id="options-box" style="margin-top: 10px;"></div>
         </div>
 
@@ -153,7 +160,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, collection, onSnapshot, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, collection, onSnapshot, query, orderBy, limit, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCKNwu6R3wjeHvWOrpiWkx5fnk0luEX_z4",
@@ -169,6 +176,8 @@
         const db = getFirestore(app);
         const ADMIN_EMAIL = "m@m.com";
         const RAMADAN_START = new Date("Feb 18, 2026 20:30:00").getTime();
+
+        let quizInterval; // متغير التحكم في العداد
 
         const dhikrs = [
             "سبحان الله", "الحمد لله", "لا إله إلا الله", "الله أكبر", 
@@ -276,6 +285,21 @@
             });
         }
 
+        // دالة المودال الموحدة
+        function showResultModal(isCorrect, explanation, isTimeout = false) {
+            document.getElementById('explanation-modal').style.display = 'flex';
+            const status = document.getElementById('modal-status');
+            if(isTimeout) {
+                status.innerText = "انتهى الوقت! ⏱️";
+                status.style.color = "var(--red)";
+                document.getElementById('modal-text').innerHTML = "للأسف انتهت الـ 60 ثانية المتاحة للإجابة. حاول أسرع في سؤال الغد!";
+            } else {
+                status.innerText = isCorrect ? "إجابة صحيحة! 🎉" : "إجابة خاطئة 🌙";
+                status.style.color = isCorrect ? "var(--success)" : "var(--red)";
+                document.getElementById('modal-text').innerHTML = `<b>المعلومة:</b><br>${explanation || "لا يوجد تفسير متاح."}`;
+            }
+        }
+
         async function setupQuiz(solvedDay) {
             const now = new Date().getTime();
             if (now < RAMADAN_START) {
@@ -288,26 +312,54 @@
             
             if(qSnap.exists()) {
                 const q = qSnap.data();
-                document.getElementById('q-text').innerText = q.text;
+                const timerEl = document.getElementById('quiz-timer');
                 const box = document.getElementById('options-box');
+                
+                if(solvedDay === rDay) {
+                    document.getElementById('q-text').innerText = "لقد شاركت في سؤال اليوم، انتظر سؤال الغد! ✨";
+                    box.innerHTML = '';
+                    timerEl.style.display = 'none';
+                    return;
+                }
+
+                document.getElementById('q-text').innerText = q.text;
                 box.innerHTML = '';
+
+                // تفعيل المؤقت الزمني
+                timerEl.style.display = 'block';
+                let timeLeft = 60;
+                timerEl.innerText = timeLeft;
+                if(quizInterval) clearInterval(quizInterval);
+
+                quizInterval = setInterval(async () => {
+                    timeLeft--;
+                    timerEl.innerText = timeLeft;
+                    if(timeLeft <= 10) timerEl.classList.add('timer-warn');
+                    if(timeLeft <= 0) {
+                        clearInterval(quizInterval);
+                        await updateDoc(doc(db, "users", auth.currentUser.uid), {lastSolved: rDay});
+                        showResultModal(false, "", true);
+                    }
+                }, 1000);
+
                 q.options.forEach(opt => {
                     const btn = document.createElement('button');
                     btn.innerText = opt;
-                    if(solvedDay === rDay) btn.disabled = true;
                     btn.onclick = async () => {
+                        clearInterval(quizInterval); // إيقاف المؤقت عند الضغط
+                        timerEl.style.display = 'none';
                         const isCorrect = opt.trim() === q.correct.trim();
                         await updateDoc(doc(db, "users", auth.currentUser.uid), {lastSolved: rDay});
-                        if(isCorrect && auth.currentUser.email !== ADMIN_EMAIL) await updateDoc(doc(db, "users", auth.currentUser.uid), {score: increment(10)});
-                        document.getElementById('explanation-modal').style.display = 'flex';
-                        document.getElementById('modal-status').innerText = isCorrect ? "إجابة صحيحة! 🎉" : "إجابة خاطئة 🌙";
-                        document.getElementById('modal-status').style.color = isCorrect ? "var(--success)" : "var(--red)";
-                        document.getElementById('modal-text').innerHTML = `<b>المعلومة:</b><br>${q.explanation || "لا يوجد تفسير متاح."}`;
+                        if(isCorrect && auth.currentUser.email !== ADMIN_EMAIL) {
+                            await updateDoc(doc(db, "users", auth.currentUser.uid), {score: increment(10)});
+                        }
+                        showResultModal(isCorrect, q.explanation);
                     };
                     box.appendChild(btn);
                 });
             } else {
                 document.getElementById('q-text').innerText = "سؤال اليوم يظهر الساعة 8:30 مساءً... انتظرونا!";
+                document.getElementById('quiz-timer').style.display = 'none';
             }
         }
 
@@ -346,29 +398,17 @@
             }
         });
 
-        // ميزة إنشاء حساب جديد
         window.handleSignUp = async () => {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             if(!email || !password) { showToast("يرجى ملء البيانات", "error"); return; }
-            
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
-                // إنشاء ملف المستخدم في قاعدة البيانات فوراً
-                await setDoc(doc(db, "users", user.uid), {
-                    email: user.email,
-                    score: 0,
-                    lastSolved: 0,
-                    forceReset: false
-                });
+                await setDoc(doc(db, "users", user.uid), {email: user.email, score: 0, lastSolved: 0, forceReset: false});
                 showToast("تم إنشاء الحساب بنجاح 🌙", "success");
             } catch (error) {
-                let msg = "خطأ في إنشاء الحساب";
-                if(error.code === 'auth/email-already-in-use') msg = "هذا البريد مستخدم بالفعل";
-                if(error.code === 'auth/weak-password') msg = "كلمة السر ضعيفة (6 رموز فأكثر)";
-                if(error.code === 'auth/invalid-email') msg = "البريد غير صحيح";
-                showToast(msg, "error");
+                showToast("خطأ في الإنشاء أو البريد مستخدم", "error");
             }
         };
 
@@ -389,7 +429,13 @@
 
         window.resetUserPass = async (id) => { if(confirm("تصفير كلمة السر لـ 123456؟")) await updateDoc(doc(db, "users", id), {forceReset: true}); }
         window.deleteUser = async (id) => { if(confirm("حذف نهائي؟")) { await deleteDoc(doc(db, "users", id)); } }
-        window.resetAllScores = async () => { if(confirm("تصفير نقاط الجميع؟")) { const s = await getDocs(collection(db, "users")); s.forEach(u => updateDoc(doc(db, "users", u.id), {score: 0})); showToast("تم التصفير"); } }
+        window.resetAllScores = async () => { 
+            if(confirm("تصفير نقاط الجميع؟")) { 
+                const s = await getDocs(collection(db, "users")); 
+                s.forEach(u => updateDoc(doc(db, "users", u.id), {score: 0})); 
+                showToast("تم التصفير"); 
+            } 
+        }
 
         window.quickAdd = async () => {
             const d = document.getElementById('adm-day').value;
@@ -403,7 +449,7 @@
         };
 
         window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(()=>showToast("بيانات خاطئة", "error"));
-        window.logout = () => signOut(auth).then(()=>location.reload());
+        window.logout = () => { if(quizInterval) clearInterval(quizInterval); signOut(auth).then(()=>location.reload()); }
     </script>
 </body>
 </html>
