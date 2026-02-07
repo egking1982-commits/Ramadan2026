@@ -82,6 +82,11 @@
         #countdown { font-family: monospace; font-size: 1.2rem; color: var(--gold); margin: 15px 0; font-weight: 800; }
         
         .admin-scroll-box { max-height: 250px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 10px; margin: 10px 0; padding: 5px; }
+
+        .cash-out-box {
+            background: rgba(34, 197, 94, 0.1); border: 1px solid var(--success);
+            padding: 10px; border-radius: 12px; margin-top: 10px; font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
@@ -95,7 +100,21 @@
         <div class="modal-content">
             <h2 id="modal-status"></h2>
             <div class="exp-box" id="modal-text"></div>
-            <button onclick="location.reload()">استمرار ✨</button>
+            <button onclick="document.getElementById('explanation-modal').style.display='none'">موافق ✨</button>
+        </div>
+    </div>
+
+    <div id="cash-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="color:var(--success)">استبدال النقاط 💸</h2>
+            <div class="exp-box">
+                سيتم تحويل نقاطك إلى رصيد مادي.<br>
+                كل نقطة = 0.50 جنيه مصري.
+            </div>
+            <input type="number" id="cash-phone" placeholder="أدخل رقم المحفظة (فودافون كاش ..)">
+            <p id="cash-preview" style="font-size: 0.9rem; color: var(--gold);"></p>
+            <button onclick="confirmCashOut()">تأكيد الطلب ✅</button>
+            <button onclick="document.getElementById('cash-modal').style.display='none'" class="btn-secondary">إلغاء</button>
         </div>
     </div>
 
@@ -116,9 +135,13 @@
         <div class="prayer-bar" id="prayer-info">📍 بورسعيد | جاري تحميل المواقيت...</div>
         
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                 <span id="user-display" style="color: var(--gold); font-weight: 800;"></span>
                 <span>النقاط: <b id="user-score">0</b></span>
+            </div>
+            <div class="cash-out-box">
+                <div>القيمة المستحقة: <b id="cash-val">0</b> جنيه</div>
+                <button onclick="openCashModal()" class="btn-small btn-blue" style="width: 100%; margin-top: 5px;">استبدال النقاط بفلوس 💸</button>
             </div>
         </div>
 
@@ -131,13 +154,17 @@
 
         <div class="card">
             <h3 style="color: var(--gold);">🏆 لوحة الشرف (مباشر ⚡)</h3>
-            <div id="leaderboard-list">جاري التحميل...</div>
+            <div id="leaderboard-list">جاري تحميل الترتيب...</div>
         </div>
 
         <div id="admin-area" style="display:none;" class="card">
             <h3 style="color:var(--gold)">🛠️ لوحة التحكم</h3>
             
             <div style="text-align: right;">
+                <h4>💰 طلبات الاستبدال (المحفظة)</h4>
+                <div id="cashout-admin-list" class="admin-scroll-box" style="border-color: var(--success);"></div>
+                
+                <hr style="opacity: 0.1;">
                 <h4>📝 إدارة الأسئلة</h4>
                 <input type="number" id="adm-day" placeholder="رقم اليوم">
                 <textarea id="adm-text" placeholder="نص السؤال"></textarea>
@@ -165,7 +192,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, collection, onSnapshot, query, orderBy, limit, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, collection, onSnapshot, query, orderBy, limit, where, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCKNwu6R3wjeHvWOrpiWkx5fnk0luEX_z4",
@@ -180,9 +207,10 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         const ADMIN_EMAIL = "m@m.com";
-        const RAMADAN_START = new Date("Feb 18, 2026 20:30:00").getTime();
+        const RAMADAN_START = new Date("Feb 19, 2026 20:30:00").getTime();
 
         let quizInterval; 
+        let currentScore = 0;
 
         // 1. وظيفة مواقيت الصلاة (بورسعيد)
         async function fetchNextPrayer() {
@@ -237,7 +265,7 @@
             } else { document.getElementById('countdown').innerText = "رمضان كريم! 🌙"; }
         }, 1000);
 
-        // 3. لوحة التحكم (إدارة الأسئلة)
+        // 3. لوحة التحكم
         window.loadAdminQuestions = () => {
             onSnapshot(collection(db, "questions"), (snap) => {
                 const list = document.getElementById('questions-admin-list');
@@ -248,6 +276,28 @@
                     div.innerHTML = `<span>يوم ${d.id.split('_')[1]}: ${d.data().text.substring(0,15)}..</span>
                     <div><button class="btn-small btn-blue" onclick="editQuestion('${d.id}')">تعديل</button>
                     <button class="btn-small btn-red" onclick="deleteQuestion('${d.id}')">حذف</button></div>`;
+                    list.appendChild(div);
+                });
+            });
+        };
+
+        window.loadCashRequests = () => {
+            onSnapshot(query(collection(db, "cash_requests"), orderBy("time", "desc")), (snap) => {
+                const list = document.getElementById('cashout-admin-list');
+                list.innerHTML = '';
+                snap.docs.forEach(d => {
+                    const data = d.data();
+                    const div = document.createElement('div');
+                    div.className = 'admin-item';
+                    div.style.background = "rgba(34, 197, 94, 0.05)";
+                    div.innerHTML = `
+                        <div style="text-align:right">
+                            <b>${data.user}</b><br>
+                            نقاط: ${data.points} | مبلغ: ${data.amount} ج.م<br>
+                            رقم المحفظة: <b style="color:var(--blue)">${data.phone}</b>
+                        </div>
+                        <button class="btn-small btn-red" onclick="deleteDoc(doc(db, 'cash_requests', '${d.id}'))">حذف</button>
+                    `;
                     list.appendChild(div);
                 });
             });
@@ -277,7 +327,6 @@
 
         window.deleteQuestion = async (id) => { if(confirm("حذف السؤال؟")) await deleteDoc(doc(db, "questions", id)); };
 
-        // 4. إدارة المستخدمين (إعادة تعيين الرقم السري 123456)
         window.loadAdminUsers = () => {
             onSnapshot(collection(db, "users"), (snap) => {
                 const list = document.getElementById('users-admin-list');
@@ -295,11 +344,8 @@
         };
 
         window.resetUserPassword = async (userEmail) => {
-            showToast("ميزة الأدمن: يرجى التواصل مع المستخدم لتغييرها يدوياً أو استخدام الـ Admin SDK", "info");
-            // تنويه: في الـ Web SDK لا يمكن تغيير كلمة سر مستخدم آخر مباشرة لأسباب أمنية، 
-            // لكننا سنبرمج الدالة لتحديث حقل في قاعدة البيانات يطلب من المستخدم تغيير كلمة سره عند الدخول.
+            showToast("تم إرسال طلب تصفير الرقم السري للأدمن", "info");
             await updateDoc(doc(db, "users_meta", "requests"), { [userEmail]: "reset_to_123456" });
-            alert("تم إرسال طلب إعادة التعيين لـ " + userEmail);
         };
 
         window.resetAllScores = async () => {
@@ -310,6 +356,32 @@
             }
         };
 
+        // 4. نظام استبدال النقاط
+        window.openCashModal = () => {
+            if (currentScore <= 0) return showToast("لا يوجد نقاط لاستبدالها", "error");
+            document.getElementById('cash-preview').innerText = `أنت بصدد طلب استبدال ${currentScore} نقطة بمبلغ ${currentScore * 0.5} جنيه.`;
+            document.getElementById('cash-modal').style.display = 'flex';
+        };
+
+        window.confirmCashOut = async () => {
+            const phone = document.getElementById('cash-phone').value;
+            if (phone.length < 11) return showToast("يرجى إدخال رقم هاتف محفظة صحيح", "error");
+            const amount = currentScore * 0.5;
+            try {
+                await addDoc(collection(db, "cash_requests"), {
+                    user: auth.currentUser.email,
+                    points: currentScore,
+                    amount: amount,
+                    phone: phone,
+                    time: serverTimestamp()
+                });
+                document.getElementById('cash-modal').style.display = 'none';
+                showToast("تم إرسال طلب الاستبدال للأدمن بنجاح ✅", "success");
+            } catch (err) {
+                showToast("حدث خطأ أثناء إرسال الطلب", "error");
+            }
+        };
+
         // 5. نظام المسابقة
         async function setupQuiz(solvedDay) {
             const now = new Date().getTime();
@@ -317,6 +389,11 @@
             const rDay = Math.floor((now - RAMADAN_START) / 86400000) + 1;
             const qSnap = await getDoc(doc(db, "questions", `day_${rDay}`));
             
+            if (rDay === 1 && !localStorage.getItem('ramadan_greeted')) {
+                showResultModal(true, "رمضان مبارك عليكم جميعاً! أهل الله علينا وعليكم الشهر بالخير واليمن والبركات.");
+                localStorage.setItem('ramadan_greeted', 'true');
+            }
+
             if(qSnap.exists() && solvedDay !== rDay) {
                 const q = qSnap.data();
                 document.getElementById('q-text').innerText = q.text;
@@ -349,6 +426,7 @@
                 });
             } else if (solvedDay === rDay) {
                 document.getElementById('q-text').innerText = "تمت الإجابة اليوم ✨";
+                document.getElementById('quiz-timer').style.display = 'none';
             }
         }
 
@@ -361,20 +439,24 @@
                 
                 onSnapshot(doc(db, "users", user.uid), (snap) => {
                     if(snap.exists()) {
-                        document.getElementById('user-score').innerText = snap.data().score;
+                        currentScore = snap.data().score || 0;
+                        document.getElementById('user-score').innerText = currentScore;
+                        document.getElementById('cash-val').innerText = (currentScore * 0.5).toFixed(2);
                         setupQuiz(snap.data().lastSolved);
                     }
                 });
 
                 if(user.email === ADMIN_EMAIL) {
                     document.getElementById('admin-area').style.display = 'block';
-                    loadAdminUsers(); loadAdminQuestions();
+                    loadAdminUsers(); loadAdminQuestions(); loadCashRequests();
                 }
-                fetchNextPrayer(); initRealtimeLeaderboard();
+                
+                fetchNextPrayer(); 
+                // تشغيل لوحة الشرف
+                initRealtimeLeaderboard();
             }
         });
 
-        // دوال التنبيه والخدمات العامة
         function showToast(m, type="info") {
             const c = document.getElementById('toast-container');
             const t = document.createElement('div');
@@ -385,19 +467,45 @@
             setTimeout(() => t.remove(), 3500);
         }
 
+        // تحسين دالة لوحة الشرف لتعمل بذكاء في حال عدم وجود Index
         function initRealtimeLeaderboard() {
-            onSnapshot(query(collection(db, "users"), limit(10)), (snap) => {
-                const list = document.getElementById('leaderboard-list');
-                list.innerHTML = '';
-                let users = [];
-                snap.forEach(d => { if(d.data().email !== ADMIN_EMAIL) users.push(d.data()); });
-                users.sort((a,b) => b.score - a.score).forEach((u, i) => {
-                    const item = document.createElement('div');
-                    item.className = `leaderboard-item ${i===0?'rank-1':''}`;
-                    item.innerHTML = `<span>${i+1}. ${u.email.split('@')[0]}</span><b>${u.score}</b>`;
-                    list.appendChild(item);
+            const list = document.getElementById('leaderboard-list');
+            if (!list) return;
+
+            // المحاولة الأولى: استعلام مرتب (يحتاج Index)
+            const qOrdered = query(collection(db, "users"), orderBy("score", "desc"), limit(12));
+
+            onSnapshot(qOrdered, (snap) => {
+                renderLeaderboard(snap);
+            }, (error) => {
+                console.warn("فشل الاستعلام المرتب، يتم الجلب بدون ترتيب وفرزه محلياً...");
+                // المحاولة الثانية: جلب البيانات وفرزها في المتصفح (تعمل بدون Index)
+                onSnapshot(collection(db, "users"), (snap) => {
+                    renderLeaderboard(snap, true);
                 });
             });
+        }
+
+        function renderLeaderboard(snap, sortLocal = false) {
+            const list = document.getElementById('leaderboard-list');
+            let users = [];
+            snap.forEach(d => {
+                if(d.data().email !== ADMIN_EMAIL) users.push(d.data());
+            });
+
+            if(sortLocal) {
+                users.sort((a, b) => (b.score || 0) - (a.score || 0));
+            }
+
+            list.innerHTML = '';
+            users.slice(0, 10).forEach((u, i) => {
+                const item = document.createElement('div');
+                item.className = `leaderboard-item ${i === 0 ? 'rank-1' : ''}`;
+                item.innerHTML = `<span>${i + 1}. ${u.email.split('@')[0]}</span><b>${u.score || 0}</b>`;
+                list.appendChild(item);
+            });
+
+            if(users.length === 0) list.innerHTML = 'لا يوجد متسابقين حالياً';
         }
 
         window.handleLogin = () => signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value).catch(()=>showToast("خطأ في البيانات","error"));
